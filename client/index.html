@@ -1,0 +1,43 @@
+<html>
+	<head>
+		<title> API Tests </title>
+
+		<script src="socket.io/socket.io.js"></script>	
+		<script>
+			var socket, firstArtist, secondArtist, submitBtn;
+
+			var sumbitArtist = function(){
+				firstArtist = document.querySelector('#firstArtist').value;
+				secondArtist = document.querySelector('#secondArtist').value;
+				console.log(firstArtist + " & " + secondArtist);
+
+				if(firstArtist && secondArtist){
+					socket.emit('serverArtist', {first: firstArtist, second: secondArtist});
+					console.log('sent');
+				}
+			}
+
+			var init = function(){
+				socket = io.connect();
+				socket.emit('join');
+
+				submitBtn = document.querySelector('#submitBtn');
+
+				submitBtn.addEventListener('click', sumbitArtist)
+
+				socket.on('init', function(data){
+					console.log(data);
+				})
+			}
+
+			window.onload = init;
+		</script>
+
+	</head>
+
+	<body>
+		<span>Select an Artist <input type="text" id="firstArtist"></span><br><br>
+		<span>Select an Artist <input type="text" id="secondArtist"></span><br>
+		<button id="submitBtn" type="button">Submit!</button>
+	</body>
+</html>
