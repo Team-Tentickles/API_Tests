@@ -1,3 +1,4 @@
+<!--Very very basic html simply for testing-->
 <html>
 	<head>
 		<title> API Tests </title>
@@ -6,27 +7,44 @@
 		<script>
 			var socket, firstArtist, secondArtist, submitBtn;
 
+			//What to do on artist submission
 			var sumbitArtist = function(){
+				//get values
 				firstArtist = document.querySelector('#firstArtist').value;
 				secondArtist = document.querySelector('#secondArtist').value;
-				console.log(firstArtist + " & " + secondArtist);
 
+				//send artist to server and confirm
 				if(firstArtist && secondArtist){
 					socket.emit('serverArtist', {first: firstArtist, second: secondArtist});
 					console.log('sent');
 				}
 			}
 
+			//init on window.load
 			var init = function(){
 				socket = io.connect();
 				socket.emit('join');
 
 				submitBtn = document.querySelector('#submitBtn');
-
 				submitBtn.addEventListener('click', sumbitArtist)
 
+				//Confirm connection
 				socket.on('init', function(data){
 					console.log(data);
+				})
+
+				//upon recieving a photo, update the <img> src
+				socket.on('photo', function(data){
+					var images = document.getElementById('images');
+
+					images.src = data;
+				})
+
+				//upon recieving a video, update the <inline> src
+				socket.on('video', function(data){
+					var images = document.getElementById('videos');
+
+					images.src = data;
 				})
 			}
 
@@ -39,5 +57,7 @@
 		<span>Select an Artist <input type="text" id="firstArtist"></span><br><br>
 		<span>Select an Artist <input type="text" id="secondArtist"></span><br>
 		<button id="submitBtn" type="button">Submit!</button>
-	</body>
+		<br><br>
+		<img id="images"></img>
+		<iframe id="videos" width="480" height="390" frameborder="0"></iframe>
 </html>

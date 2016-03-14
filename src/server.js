@@ -1,3 +1,4 @@
+//Imports, globals, and ports
 var http = require('http'),
 	fs = require('fs'),
 	socketio = require('socket.io'),
@@ -7,16 +8,18 @@ var http = require('http'),
 	port = process.env.PORT || process.env.NODE_PORT || 3000,
 	index = fs.readFileSync(__dirname + '/../client/index.html');
 
+//initializing the Rovi and Echo keys
 rovi.init(config.rovi.key, config.rovi.secret);
 echo.init(config.echo.key);
 
+//Basic onRequest
 var onRequest = function(req, res){
-
 	res.writeHead(200,{"Content-Type": "text/html"});
 	res.end(index);
 };
 
 //finds common things in two arrays (can be used for infuences and similarities)
+//Only Logs in console for now
 var compareArrays = function(arr1, arr2){
 	var sames = [];
 
@@ -36,6 +39,8 @@ var compareArrays = function(arr1, arr2){
 };
 
 //finds the influeners using rovi
+//Doesn't look for both influencers sychronously, looks for one set then the next
+//this will have a small performance problems, look into alternatives
 var findInflu = function(data){
 	var firstInflu = [], secondInflu = [];
 
@@ -58,7 +63,7 @@ var findInflu = function(data){
 					for(var i = 0; i < res.influencers.length; i++){
 						secondInflu.push(res.influencers[i].name);
 					}
-					//pass influencers to be compared
+					//pass influencers to be compared in helper function
 					compareArrays(firstInflu, secondInflu);
 				}
 			});
@@ -67,7 +72,8 @@ var findInflu = function(data){
 	
 };
 
-//finds similarities vusing echonest
+//finds similarities using echonest
+//same problems as findInflu
 var findSimilar = function(data){
 	var firstInflu = [], secondInflu = [];
 
@@ -90,7 +96,7 @@ var findSimilar = function(data){
 					for(var i = 0; i < res.response.artists.length; i++){
 						secondInflu.push(res.response.artists[i].name);
 					}
-					//pass influencers to be compared
+					//pass similarities to be compared
 					compareArrays(firstInflu, secondInflu);
 				}
 			});
@@ -99,21 +105,55 @@ var findSimilar = function(data){
 	
 };
 
+//Find Images for artist
+//Currently not working because images function is deprecated
+var findPhoto = function(data, socket){
+	echo.get("artist/images", { "name": data.first }, function (err, res) {
+		if(err){
+			console.log(err);
+		}
+		else{
+			socket.emit('photo', res.response.video[1]);
+		}
+	});
+};
+
+//Finds video for artist
+//A regular URL is returned from API services so we need to replace the URL to add the "embed" to make it website friendly
+//Will need to check for all video sources (youtube, dailymotion, etc)
+//Possible more effiecient way?
+var findVideo = function(data, socket){
+	echo.get("artist/video", { "name": data.first }, function (err, res) {
+		if(err){
+			console.log(err);
+		}
+		else{
+			var oURL = res.response.video[0].url;
+			var nURL = oURL.replace("http://www.dailymotion.com/", "http://www.dailymotion.com/embed/")
+			socket.emit('video', nURL);
+		}
+	});
+};
+
+//onJoin test
 var onJoined = function(socket){
 	var msg = "Hey";
 	socket.emit('init', msg);
 
+	//When artists are recieved, this deals with that
+	//I commented out each for testing
+	//ideally we want one function that would run all of these functions and then return them as an object to be used by the client side
 	socket.on('serverArtist', function(data){
-		findInflu(data);
+		//findInflu(data);
 		//findSimilar(data);
+		//findPhoto(data, socket);
+		findVideo(data, socket);
 	});
 };
 
+//Socket.io listening to ports for connections
 var app = http.createServer(onRequest).listen(port);
-
 var io = socketio(app);
-
-
 io.sockets.on("connection", function(socket){
 	onJoined(socket);
 });
