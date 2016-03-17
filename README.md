@@ -10,6 +10,8 @@ Messing around with some API calls onto the Roci API using a node.js client [mad
 #Installation
 `npm install`
 
+`npm start`
+
 
 ##Future Work
 So the server is gonna send an object in the structure of:
