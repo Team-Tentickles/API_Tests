@@ -2,6 +2,7 @@
 var http = require('http'),
 	fs = require('fs'),
 	socketio = require('socket.io'),
+	async = require('async'),
 	config = require('./config/config.js'),
 	rovi = require('./rovi.js'),
 	echo = require('./echo.js'),
@@ -23,7 +24,7 @@ var onRequest = function(req, res){
 var compareArrays = function(arr1, arr2){
 	var sames = [];
 
-	for(i in arr1){
+	for(var i in arr1){
 		if(arr2.indexOf( arr1[i]) > -1){
 			sames.push( arr1[i]);
 		}
@@ -41,32 +42,13 @@ var compareArrays = function(arr1, arr2){
 //finds the influeners using rovi
 //Doesn't look for both influencers sychronously, looks for one set then the next
 //this will have a small performance problems, look into alternatives
-var findInflu = function(data){
-	var firstInflu = [], secondInflu = [];
-
-	//first set of influencers
-	rovi.get("name/influencers", { "name": data.first }, function (err, res) {
+var findInflu = function(data, callback){
+	rovi.get("name/influencers", { "name": data}, function (err, res) {
 		if(err){
 			console.log(err);
 		}
 		else{
-			for(var i = 0; i < res.influencers.length; i++){
-				firstInflu.push(res.influencers[i].name);
-			}
-
-			// second set of influencers
-			rovi.get("name/influencers", { "name": data.second }, function (err, res) {
-				if(err){
-					console.log(err);
-				}
-				else{
-					for(var i = 0; i < res.influencers.length; i++){
-						secondInflu.push(res.influencers[i].name);
-					}
-					//pass influencers to be compared in helper function
-					compareArrays(firstInflu, secondInflu);
-				}
-			});
+			callback(null, res.influencers[0].name);
 		}
 	});
 	
@@ -83,6 +65,7 @@ var findSimilar = function(data){
 			console.log(err);
 		}
 		else{
+			console.log(res.response);
 			for(var i = 0; i < res.response.artists.length; i++){
 			firstInflu.push(res.response.artists[i].name);
 			}
@@ -100,20 +83,20 @@ var findSimilar = function(data){
 					compareArrays(firstInflu, secondInflu);
 				}
 			});
-		};
+		}
 	});
 	
 };
 
 //Find Images for artist
 //Currently not working because images function is deprecated
-var findPhoto = function(data, socket){
-	echo.get("artist/images", { "name": data.first }, function (err, res) {
+var findPhoto = function(data, callback){
+	echo.get("artist/images", { "name": data}, function (err, res) {
 		if(err){
 			console.log(err);
 		}
 		else{
-			socket.emit('photo', res.response.video[1]);
+			callback(null, res.response.images[0].url);
 		}
 	});
 };
@@ -122,16 +105,69 @@ var findPhoto = function(data, socket){
 //A regular URL is returned from API services so we need to replace the URL to add the "embed" to make it website friendly
 //Will need to check for all video sources (youtube, dailymotion, etc)
 //Possible more effiecient way?
-var findVideo = function(data, socket){
-	echo.get("artist/video", { "name": data.first }, function (err, res) {
+var findVideo = function(data, callback){
+	echo.get("artist/video", { "name": data}, function (err, res) {
 		if(err){
 			console.log(err);
 		}
 		else{
 			var oURL = res.response.video[0].url;
-			var nURL = oURL.replace("http://www.dailymotion.com/", "http://www.dailymotion.com/embed/")
-			socket.emit('video', nURL);
+			var nURL = oURL.replace("http://www.dailymotion.com/", "http://www.dailymotion.com/embed/");
+			
+			callback(null, nURL);
+
 		}
+	});
+};
+
+var makePackage = function(data, socket){
+	var dataPackage = {
+		first: {
+			images: [],
+			video: [],
+			influencers: []
+		},
+		second: {
+			images: [],
+			video: [],
+			influencers: []
+		},
+		similar: {
+			images: [],
+			video: [],
+			influencers: []
+		}
+	};
+
+	async.parallel({
+		firstVideo: function(callback){
+			findVideo(data.first, callback);
+		},
+		secondVideo: function(callback){
+			findVideo(data.second, callback);
+		},
+		firstImg: function(callback){
+			findPhoto(data.first, callback);
+		},
+		secondImg: function(callback){
+			findPhoto(data.second, callback);
+		},
+		firstInflu: function(callback){
+			findInflu(data.first, callback);
+		},
+		secondInflu: function(callback){
+			findInflu(data.second, callback);
+		}
+	},
+	function(err, results){
+		dataPackage.first.video.push({'url': results.firstVideo});
+		dataPackage.second.video.push({'url':results.secondVideo});
+		dataPackage.first.images.push({'url':results.firstImg});
+		dataPackage.second.images.push({'url':results.secondImg});
+		dataPackage.first.influencers.push({'name':results.firstInflu});
+		dataPackage.second.influencers.push({'name':results.secondInflu});
+
+		socket.emit('package', dataPackage);
 	});
 };
 
@@ -144,10 +180,7 @@ var onJoined = function(socket){
 	//I commented out each for testing
 	//ideally we want one function that would run all of these functions and then return them as an object to be used by the client side
 	socket.on('serverArtist', function(data){
-		//findInflu(data);
-		//findSimilar(data);
-		//findPhoto(data, socket);
-		findVideo(data, socket);
+		makePackage(data, socket);
 	});
 };
 
