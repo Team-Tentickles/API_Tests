@@ -34,6 +34,7 @@ Echonest.prototype = {
         var base_url = 'http://developer.echonest.com',
             path = '/api/v4/' + endpoint + '?api_key=' +  this.api_key + '&format=json',
             params = params ? '&' + qs.stringify(params) : '';
+            console.log(params);
 
         request(base_url + path + params, function (err, response, body) {
             if (err || response.statusCode !== 200) {

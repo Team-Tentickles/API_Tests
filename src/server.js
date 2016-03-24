@@ -40,8 +40,6 @@ var compareArrays = function(arr1, arr2){
 };
 
 //finds the influeners using rovi
-//Doesn't look for both influencers sychronously, looks for one set then the next
-//this will have a small performance problems, look into alternatives
 var findInflu = function(data, callback){
 	rovi.get("name/influencers", { "name": data}, function (err, res) {
 		if(err){
@@ -57,32 +55,14 @@ var findInflu = function(data, callback){
 //finds similarities using echonest
 //same problems as findInflu
 var findSimilar = function(data){
-	var firstInflu = [], secondInflu = [];
+	var artistnames = [data.first, data.second];
 
-	//first set of similarities
-	echo.get("artist/similar", { "name": data.first }, function (err, res) {
+	echo.get("artist/similar", {"name": artistnames }, function (err, res) {
 		if(err){
 			console.log(err);
 		}
 		else{
-			console.log(res.response);
-			for(var i = 0; i < res.response.artists.length; i++){
-			firstInflu.push(res.response.artists[i].name);
-			}
-			
-			// second set of similarities
-			echo.get("artist/similar", { "name": data.second }, function (err, res) {
-				if(err){
-					console.log(err);
-				}
-				else{
-					for(var i = 0; i < res.response.artists.length; i++){
-						secondInflu.push(res.response.artists[i].name);
-					}
-					//pass similarities to be compared
-					compareArrays(firstInflu, secondInflu);
-				}
-			});
+			console.log(res.response.artists);
 		}
 	});
 	
@@ -120,6 +100,7 @@ var findVideo = function(data, callback){
 	});
 };
 
+//Calls each function and makes it into a single object
 var makePackage = function(data, socket){
 	var dataPackage = {
 		first: {
@@ -139,6 +120,8 @@ var makePackage = function(data, socket){
 		}
 	};
 
+	//Async.js allows us to call multiple async functions at once 
+	//and then wait for a reply from all of them before continuing
 	async.parallel({
 		firstVideo: function(callback){
 			findVideo(data.first, callback);
@@ -176,11 +159,10 @@ var onJoined = function(socket){
 	var msg = "Hey";
 	socket.emit('init', msg);
 
-	//When artists are recieved, this deals with that
-	//I commented out each for testing
-	//ideally we want one function that would run all of these functions and then return them as an object to be used by the client side
+	//Make the package
 	socket.on('serverArtist', function(data){
-		makePackage(data, socket);
+		//makePackage(data, socket);
+		findSimilar(data);
 	});
 };
 
