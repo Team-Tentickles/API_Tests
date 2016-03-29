@@ -3,6 +3,7 @@ var http = require('http'),
 	fs = require('fs'),
 	socketio = require('socket.io'),
 	async = require('async'),
+	discogs = require("disconnect").Client,
 	config = require('./config/config.js'),
 	rovi = require('./rovi.js'),
 	echo = require('./echo.js'),
@@ -12,32 +13,14 @@ var http = require('http'),
 //initializing the Rovi and Echo keys
 rovi.init(config.rovi.key, config.rovi.secret);
 echo.init(config.echo.key);
+var dis = new discogs({userToken: 'xQSstXxQtGrcxUDRGSHJYjshQcuqYgbsBQlMKagH'});
+var db = dis.database();
 
 //Basic onRequest
 var onRequest = function(req, res){
 	res.writeHead(200,{"Content-Type": "text/html"});
 	res.end(index);
 };
-
-/*//finds common things in two arrays (can be used for infuences and similarities)
-//Only Logs in console for now
-var compareArrays = function(arr1, arr2){
-	var sames = [];
-
-	for(var i in arr1){
-		if(arr2.indexOf( arr1[i]) > -1){
-			sames.push( arr1[i]);
-		}
-	}
-
-	if(sames.length === 0){
-		console.log("No matches");
-	}
-	else{
-		console.log(sames);
-	}
-	
-};*/
 
 //finds the influeners using rovi
 var findInflu = function(data, callback){
@@ -67,17 +50,16 @@ var findSimilar = function(data, callback){
 	
 };
 
-//Find Images for artist
-//Currently not working because images function is deprecated
+//Find Images for artist using discogs
+//Currently only logs images
 var findPhoto = function(data, callback){
-	echo.get("artist/images", { "name": data}, function (err, res) {
-		if(err){
-			console.log(err);
-		}
-		else{
-			callback(null, res.response.images[0].url);
-		}
-	});
+	db.search('Katy Perry', {'type': 'artist'}, function(err, data){
+		//console.log(data.results[0]);
+
+		db.artist(data.results[0].id, function(err, data2) {
+		   console.log(data2.images); 
+		}); 
+	});		
 };
 
 //Finds video for artist
@@ -132,10 +114,10 @@ var makePackage = function(data, socket){
 			firstImg: function(callback){
 				findPhoto(data.first, callback);
 			},
-			secondImg: function(callback){
+			/*secondImg: function(callback){
 				findPhoto(data.second, callback);
 			},
-			firstInflu: function(callback){
+*/			firstInflu: function(callback){
 				findInflu(data.first, callback);
 			},
 			secondInflu: function(callback){
@@ -148,8 +130,8 @@ var makePackage = function(data, socket){
 		function(err, results){
 			dataPackage.first.video.push({'url': results.firstVideo});
 			dataPackage.second.video.push({'url':results.secondVideo});
-			dataPackage.first.images.push({'url':results.firstImg});
-			dataPackage.second.images.push({'url':results.secondImg});
+			//dataPackage.first.images.push({'url':results.firstImg});
+			//dataPackage.second.images.push({'url':results.secondImg});
 			dataPackage.first.influencers.push({'name':results.firstInflu});
 			dataPackage.second.influencers.push({'name':results.secondInflu});
 
@@ -158,16 +140,16 @@ var makePackage = function(data, socket){
 					similarVideo: function(callback){
 						findVideo(results.similar.name, callback);
 					},
-					similarImg: function(callback){
+					/*similarImg: function(callback){
 						findPhoto(results.similar.name, callback);
-					},
+					},*/
 					similarInflu: function(callback){
 						findInflu(results.similar.name, callback);
 					}
 				},
 				function(err,results){
 					dataPackage.similar.video.push({'url': results.similarVideo});
-					dataPackage.similar.images.push({'url':results.similarImg});
+					//dataPackage.similar.images.push({'url':results.similarImg});
 					dataPackage.similar.influencers.push({'name':results.similarInflu});
 
 					console.log(dataPackage.similar);
