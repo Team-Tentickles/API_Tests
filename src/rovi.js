@@ -50,7 +50,6 @@ Rovi.prototype = {
                           '&sig=' + signature;
 
         var queryString = base_url + endpointPath + params + closingPath;
-        console.log(queryString)
         
         request(queryString, function (err, response, body) {
             if (err || response.statusCode !== 200) {

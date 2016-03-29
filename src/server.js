@@ -19,7 +19,7 @@ var onRequest = function(req, res){
 	res.end(index);
 };
 
-//finds common things in two arrays (can be used for infuences and similarities)
+/*//finds common things in two arrays (can be used for infuences and similarities)
 //Only Logs in console for now
 var compareArrays = function(arr1, arr2){
 	var sames = [];
@@ -37,7 +37,7 @@ var compareArrays = function(arr1, arr2){
 		console.log(sames);
 	}
 	
-};
+};*/
 
 //finds the influeners using rovi
 var findInflu = function(data, callback){
@@ -53,8 +53,7 @@ var findInflu = function(data, callback){
 };
 
 //finds similarities using echonest
-//same problems as findInflu
-var findSimilar = function(data){
+var findSimilar = function(data, callback){
 	var artistnames = [data.first, data.second];
 
 	echo.get("artist/similar", {"name": artistnames }, function (err, res) {
@@ -62,7 +61,7 @@ var findSimilar = function(data){
 			console.log(err);
 		}
 		else{
-			console.log(res.response.artists);
+			callback(null, res.response.artists[0]);
 		}
 	});
 	
@@ -122,36 +121,62 @@ var makePackage = function(data, socket){
 
 	//Async.js allows us to call multiple async functions at once 
 	//and then wait for a reply from all of them before continuing
-	async.parallel({
-		firstVideo: function(callback){
-			findVideo(data.first, callback);
+	async.parallel(
+		{
+			firstVideo: function(callback){
+				findVideo(data.first, callback);
+			},
+			secondVideo: function(callback){
+				findVideo(data.second, callback);
+			},
+			firstImg: function(callback){
+				findPhoto(data.first, callback);
+			},
+			secondImg: function(callback){
+				findPhoto(data.second, callback);
+			},
+			firstInflu: function(callback){
+				findInflu(data.first, callback);
+			},
+			secondInflu: function(callback){
+				findInflu(data.second, callback);
+			},
+			similar: function(callback){
+				findSimilar(data, callback);
+			}
 		},
-		secondVideo: function(callback){
-			findVideo(data.second, callback);
-		},
-		firstImg: function(callback){
-			findPhoto(data.first, callback);
-		},
-		secondImg: function(callback){
-			findPhoto(data.second, callback);
-		},
-		firstInflu: function(callback){
-			findInflu(data.first, callback);
-		},
-		secondInflu: function(callback){
-			findInflu(data.second, callback);
-		}
-	},
-	function(err, results){
-		dataPackage.first.video.push({'url': results.firstVideo});
-		dataPackage.second.video.push({'url':results.secondVideo});
-		dataPackage.first.images.push({'url':results.firstImg});
-		dataPackage.second.images.push({'url':results.secondImg});
-		dataPackage.first.influencers.push({'name':results.firstInflu});
-		dataPackage.second.influencers.push({'name':results.secondInflu});
+		function(err, results){
+			dataPackage.first.video.push({'url': results.firstVideo});
+			dataPackage.second.video.push({'url':results.secondVideo});
+			dataPackage.first.images.push({'url':results.firstImg});
+			dataPackage.second.images.push({'url':results.secondImg});
+			dataPackage.first.influencers.push({'name':results.firstInflu});
+			dataPackage.second.influencers.push({'name':results.secondInflu});
 
-		socket.emit('package', dataPackage);
-	});
+			async.parallel(
+				{
+					similarVideo: function(callback){
+						findVideo(results.similar.name, callback);
+					},
+					similarImg: function(callback){
+						findPhoto(results.similar.name, callback);
+					},
+					similarInflu: function(callback){
+						findInflu(results.similar.name, callback);
+					}
+				},
+				function(err,results){
+					dataPackage.similar.video.push({'url': results.similarVideo});
+					dataPackage.similar.images.push({'url':results.similarImg});
+					dataPackage.similar.influencers.push({'name':results.similarInflu});
+
+					console.log(dataPackage.similar);
+
+					socket.emit('package', dataPackage);
+				}
+			);
+		}
+	);
 };
 
 //onJoin test
@@ -161,8 +186,7 @@ var onJoined = function(socket){
 
 	//Make the package
 	socket.on('serverArtist', function(data){
-		//makePackage(data, socket);
-		findSimilar(data);
+		makePackage(data, socket);
 	});
 };
 
